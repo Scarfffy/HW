@@ -37,19 +37,19 @@ class Program
                 int p1Card = GetRandomCard();
                 int cpuCard = GetRandomCard();
 
-                if (p1Card == 9) //player cards
+                if (p1Card == 11) //player cards
                 {
                     p1Score += 2;
                 }
-                else if (p1Card == 10)
+                else if (p1Card == 12)
                 {
                     p1Score += 3;
                 }
-                else if (p1Card == 11)
+                else if (p1Card == 13)
                 {
                     p1Score += 4;
                 }
-                else if (p1Card == 12)
+                else if (p1Card == 14)
                 {
 
                     p1Score += 11;
@@ -59,19 +59,19 @@ class Program
                     p1Score += p1Card;
                 }
 
-                if (cpuCard == 9) //bot cards
+                if (cpuCard == 11) //bot cards
                 {
                     cpuScore += 2;
                 }
-                else if (cpuCard == 10)
+                else if (cpuCard == 12)
                 {
                     cpuScore += 3;
                 }
-                else if (cpuCard == 11)
+                else if (cpuCard == 13)
                 {
                     cpuScore += 4;
                 }
-                else if (cpuCard == 12)
+                else if (cpuCard == 14)
                 {
                     cpuScore += 11;
                 }
@@ -104,19 +104,19 @@ class Program
                 {
                     int p1Card = GetRandomCard();
 
-                    if (p1Card == 9)
+                    if (p1Card == 11)
                     {
                         p1Score += 2;
                     }
-                    else if (p1Card == 10)
+                    else if (p1Card == 12)
                     {
                         p1Score += 3;
                     }
-                    else if (p1Card == 11)
+                    else if (p1Card == 13)
                     {
                         p1Score += 4;
                     }
-                    else if (p1Card == 12)
+                    else if (p1Card == 14)
                     {
 
                         p1Score += 11;
@@ -142,19 +142,19 @@ class Program
                     {
                         int cpuCard = GetRandomCard();
 
-                        if (cpuCard == 9)
+                        if (cpuCard == 11)
                         {
                             cpuScore += 2;
                         }
-                        else if (cpuCard == 10)
+                        else if (cpuCard == 12)
                         {
                             cpuScore += 3;
                         }
-                        else if (cpuCard == 11)
+                        else if (cpuCard == 13)
                         {
                             cpuScore += 4;
                         }
-                        else if (cpuCard == 12)
+                        else if (cpuCard == 14)
                         {
                             cpuScore += 11;
                         }
@@ -230,28 +230,7 @@ class Program
 
     static int GetRandomCard()
     {
-        int randomCards = random.Next(0, 12);
-        switch (randomCards)
-        {
-            case 0:
-                return 2;
-            case 1:
-                return 3;
-            case 2:
-                return 4;
-            case 3:
-                return 5;
-            case 4:
-                return 6;
-            case 5:
-                return 7;
-            case 6:
-                return 8;
-            case 7:
-                return 9;
-            case 8:
-                return 10;
-        }
+        int randomCards = random.Next(2, 14);
         return randomCards;
     }
 
@@ -261,13 +240,13 @@ class Program
         int rank = cardValue;
         switch (cardValue)
         {
-            case 9:
-                return $"Jack of {suit}" ;
-            case 10:
-                return $"Queen of {suit}";
             case 11:
-                return $"King of {suit}";
+                return $"Jack of {suit}" ;
             case 12:
+                return $"Queen of {suit}";
+            case 13:
+                return $"King of {suit}";
+            case 14:
                 return $"Ace of {suit}";
         }
         return $"{rank} of {suit}";
