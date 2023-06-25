@@ -1,0 +1,11 @@
+﻿Console.WriteLine(string.Join(", ", Enumerable.Range(10, 41)));
+Console.WriteLine(string.Join(", ", Enumerable.Range(10, 41).Where(num => num % 3 == 0)));
+Console.WriteLine(string.Concat(Enumerable.Repeat("Linq", 10)));
+Console.WriteLine(string.Join(", ", "aaa;abb;ccc;dap".Split(';').Where(word => word.Contains('a'))));
+Console.WriteLine(string.Join(", ", "aaa;abb;ccc;dap".Split(';').Select(word => word.Count(letter => letter == 'a'))));
+Console.WriteLine("aaa;xabbx;abb;ccc;dap".Split(';').Any(word => word == "abb"));
+Console.WriteLine("aaa;xabbx;abb;ccc;dap".Split(';').OrderByDescending(word => word.Length).FirstOrDefault());
+Console.WriteLine("aaa;xabbx;abb;ccc;dap".Split(';').Select(word => word.Length).Average());
+Console.WriteLine(string.Join("", "aaa;xabbx;abb;ccc;dap;zh".Split(';').OrderBy(word => word.Length).FirstOrDefault().ToCharArray().Reverse()));
+Console.WriteLine("baaa;aabb;aaa;xabbx;abb;ccc;dap;zh".Split(';').FirstOrDefault(word => word.StartsWith("aa") && word.Substring(2).All(letter => letter == 'b' && word.Length > 2)) != null);
+Console.WriteLine("baaa;aabb;aaa;xabbx;abb;ccc;dap;zh".Split(';').Where(word => !word.EndsWith("bb")).Skip(2).LastOrDefault());
