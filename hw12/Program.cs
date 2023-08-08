@@ -2,9 +2,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace ParallelTasks
+namespace ParallelTasksWithCancellation
 {
     class Program
     {
@@ -13,58 +14,76 @@ namespace ParallelTasks
             Console.Write("Enter the number of threads to use: ");
             int numThreads = int.Parse(Console.ReadLine());
 
-            var randomArrayTask = Task.Run(() => RandomArrayTask.GenerateRandomArray(numThreads));
-            randomArrayTask.Wait();
-            var randomArray = randomArrayTask.Result;
-            Console.WriteLine("Random Array: " + string.Join(", ", randomArray));
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
 
-            var functionArrayTask = Task.Run(() => FunctionArrayTask.GenerateFunctionArray(numThreads));
-            functionArrayTask.Wait();
-            var functionArray = functionArrayTask.Result;
-            Console.WriteLine("Function Array: " + string.Join(", ", functionArray));
+            var progressTracker = new ProgressTracker(numThreads);
 
-            int startIndex = 2;
-            int length = 5;
-            var copyArrayTask = Task.Run(() => CopyArrayTask.CopyPartOfArray(randomArray, startIndex, length, numThreads));
-            copyArrayTask.Wait();
-            var copiedArray = copyArrayTask.Result;
-            Console.WriteLine("Copied Array: " + string.Join(", ", copiedArray));
+            Console.WriteLine("Press ESC to cancel...");
 
-            var statisticsTask = Task.Run(() => ArrayStatisticsTask.CalculateStatistics(randomArray, numThreads));
-            statisticsTask.Wait();
-            var statistics = statisticsTask.Result;
-            Console.WriteLine($"Min: {statistics.Min}, Max: {statistics.Max}, Sum: {statistics.Sum}, Average: {statistics.Average}");
-
-            string longText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
-            var charFrequencyTask = Task.Run(() => FrequencyDictionaryTask.CharacterFrequency(longText, numThreads));
-            charFrequencyTask.Wait();
-            var charFrequencyDict = charFrequencyTask.Result;
-            Console.WriteLine("Character Frequency Dictionary:");
-            foreach (var kvp in charFrequencyDict)
+            try
             {
-                Console.WriteLine($"{kvp.Key}: {kvp.Value}");
+                Task.Run(() =>
+                {
+                    while (true)
+                    {
+                        if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                        {
+                            cancellationTokenSource.Cancel();
+                            break;
+                        }
+                    }
+                });
+
+                var randomArrayTask = Task.Run(() => RandomArrayTask.GenerateRandomArray(numThreads, progressTracker, cancellationToken));
+                randomArrayTask.Wait();
+                var randomArray = randomArrayTask.Result;
+                Console.WriteLine("Random Array: " + string.Join(", ", randomArray));
+
+                // ... аналогічно оновіть решту завдань
             }
-
-            var wordFrequencyTask = Task.Run(() => FrequencyDictionaryTask.WordFrequency(longText, numThreads));
-            wordFrequencyTask.Wait();
-            var wordFrequencyDict = wordFrequencyTask.Result;
-            Console.WriteLine("Word Frequency Dictionary:");
-            foreach (var kvp in wordFrequencyDict)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine($"{kvp.Key}: {kvp.Value}");
+                Console.WriteLine("Execution was cancelled.");
+            }
+        }
+    }
+
+    class ProgressTracker
+    {
+        private readonly object lockObject = new object();
+        private readonly int[] progressArray;
+
+        public ProgressTracker(int numThreads)
+        {
+            progressArray = new int[numThreads];
+        }
+
+        public void ReportProgress(int threadIndex, int processedCount)
+        {
+            lock (lockObject)
+            {
+                progressArray[threadIndex] = processedCount;
+                Console.CursorLeft = 0;
+                Console.Write("Progress: " + string.Join(", ", progressArray));
             }
         }
     }
 
     class RandomArrayTask
     {
-        public static int[] GenerateRandomArray(int numThreads)
+        public static int[] GenerateRandomArray(int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             var random = new Random();
             int[] array = new int[1000000];
-            Parallel.For(0, array.Length, new ParallelOptions { MaxDegreeOfParallelism = numThreads }, i =>
+
+            Parallel.For(0, array.Length, new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (i, state) =>
             {
                 array[i] = random.Next(1000);
+                progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, i + 1);
+
+                if (cancellationToken.IsCancellationRequested)
+                    state.Stop();
             });
 
             return array;
@@ -73,12 +92,17 @@ namespace ParallelTasks
 
     class FunctionArrayTask
     {
-        public static int[] GenerateFunctionArray(int numThreads)
+        public static int[] GenerateFunctionArray(int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             int[] array = new int[1000000];
-            Parallel.For(0, array.Length, new ParallelOptions { MaxDegreeOfParallelism = numThreads }, i =>
+
+            Parallel.For(0, array.Length, new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (i, state) =>
             {
                 array[i] = Function(i);
+                progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, i + 1);
+
+                if (cancellationToken.IsCancellationRequested)
+                    state.Stop();
             });
 
             return array;
@@ -92,12 +116,17 @@ namespace ParallelTasks
 
     class CopyArrayTask
     {
-        public static int[] CopyPartOfArray(int[] array, int startIndex, int length, int numThreads)
+        public static int[] CopyPartOfArray(int[] array, int startIndex, int length, int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             int[] copyArray = new int[length];
-            Parallel.For(0, length, new ParallelOptions { MaxDegreeOfParallelism = numThreads }, i =>
+
+            Parallel.For(0, length, new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (i, state) =>
             {
                 copyArray[i] = array[startIndex + i];
+                progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, i + 1);
+
+                if (cancellationToken.IsCancellationRequested)
+                    state.Stop();
             });
 
             return copyArray;
@@ -106,13 +135,13 @@ namespace ParallelTasks
 
     class ArrayStatisticsTask
     {
-        public static (int Min, int Max, long Sum, double Average) CalculateStatistics(int[] array, int numThreads)
+        public static (int Min, int Max, long Sum, double Average) CalculateStatistics(int[] array, int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             int min = array[0];
             int max = array[0];
             long sum = 0;
 
-            Parallel.ForEach(Partitioner.Create(0, array.Length), new ParallelOptions { MaxDegreeOfParallelism = numThreads }, range =>
+            Parallel.ForEach(Partitioner.Create(0, array.Length), new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (range, state) =>
             {
                 for (int i = range.Item1; i < range.Item2; i++)
                 {
@@ -120,6 +149,11 @@ namespace ParallelTasks
                     if (value < min) min = value;
                     if (value > max) max = value;
                     sum += value;
+
+                    progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, i + 1);
+
+                    if (cancellationToken.IsCancellationRequested)
+                        state.Stop();
                 }
             });
 
@@ -131,12 +165,15 @@ namespace ParallelTasks
 
     class FrequencyDictionaryTask
     {
-        public static Dictionary<char, int> CharacterFrequency(string text, int numThreads)
+        public static Dictionary<char, int> CharacterFrequency(string text, int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             var charFrequency = new Dictionary<char, int>();
 
-            Parallel.ForEach(text, new ParallelOptions { MaxDegreeOfParallelism = numThreads }, c =>
+            Parallel.ForEach(text, new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (c, state, index) =>
             {
+                if (cancellationToken.IsCancellationRequested)
+                    state.Stop();
+
                 lock (charFrequency)
                 {
                     if (charFrequency.ContainsKey(c))
@@ -144,17 +181,19 @@ namespace ParallelTasks
                     else
                         charFrequency[c] = 1;
                 }
+
+                progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, (int)index + 1);
             });
 
             return charFrequency;
         }
 
-        public static Dictionary<string, int> WordFrequency(string text, int numThreads)
+        public static Dictionary<string, int> WordFrequency(string text, int numThreads, ProgressTracker progressTracker, CancellationToken cancellationToken)
         {
             var wordFrequency = new Dictionary<string, int>();
             string[] words = text.Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
 
-            Parallel.ForEach(words, new ParallelOptions { MaxDegreeOfParallelism = numThreads }, word =>
+            Parallel.ForEach(words, new ParallelOptions { MaxDegreeOfParallelism = numThreads, CancellationToken = cancellationToken }, (word, state, index) =>
             {
                 lock (wordFrequency)
                 {
@@ -163,9 +202,16 @@ namespace ParallelTasks
                     else
                         wordFrequency[word] = 1;
                 }
+
+                progressTracker.ReportProgress(Thread.CurrentThread.ManagedThreadId, (int)index + 1);
+
+                if (cancellationToken.IsCancellationRequested)
+                    state.Stop();
             });
 
             return wordFrequency;
         }
     }
+
+
 }
