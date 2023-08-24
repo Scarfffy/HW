@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -9,6 +10,37 @@ class Client
     private static NetworkStream stream;
     private static string username;
 
+    static void SendHistoryRequest()
+    {
+        SendMessage("/historyrequest");
+    }
+
+    static void ReceiveHistory()
+    {
+        byte[] data = new byte[1024];
+        int bytesRead = stream.Read(data, 0, data.Length);
+        string history = Encoding.ASCII.GetString(data, 0, bytesRead);
+        Console.WriteLine("Message History:");
+        Console.WriteLine(history);
+    }
+    static void FindServers()
+    {
+        UdpClient udpClient = new UdpClient();
+        udpClient.EnableBroadcast = true;
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Broadcast, 8889);
+
+        byte[] data = Encoding.ASCII.GetBytes("ServerSearch");
+        udpClient.Send(data, data.Length, endPoint);
+
+        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Any, 0);
+        byte[] responseBytes = udpClient.Receive(ref serverEndPoint);
+        string response = Encoding.ASCII.GetString(responseBytes);
+        Console.WriteLine("Server found at: " + serverEndPoint.Address);
+
+        udpClient.Close();
+    }
+
+
     static void Main(string[] args)
     {
         try
@@ -16,7 +48,6 @@ class Client
             client = new TcpClient("127.0.0.1", 8888);
             stream = client.GetStream();
 
-            // ... інший код ...
         }
         catch (Exception ex)
         {
@@ -44,8 +75,19 @@ class Client
                 string message = Console.ReadLine();
                 if (message.ToLower() == "exit")
                     break;
-
-                if (message.StartsWith("@"))
+                else if (message == "/historyrequest")
+                {
+                    ReceiveHistory();
+                }
+                else if (message.ToLower() == "/findservers")
+                {
+                    FindServers();
+                }
+                else if (message == "/history")
+                {
+                    SendHistoryRequest();
+                }
+                else if (message.StartsWith("@"))
                 {
                     SendPrivateMessage(message);
                 }

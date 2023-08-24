@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -8,7 +9,10 @@ using System.Threading;
 class Server
 {
     internal static readonly Dictionary<string, ClientHandler> clients = new Dictionary<string, ClientHandler>();
-    internal static readonly object clientsLock = new object();
+    private static readonly object clientsLock = new object();
+
+    private static readonly List<string> messageHistory = new List<string>();
+    private static readonly object historyLock = new object();
 
     static void Main(string[] args)
     {
@@ -36,6 +40,43 @@ class Server
         finally
         {
             server?.Stop();
+        }
+        static void AddMessageToHistory(string message)
+        {
+            lock (historyLock)
+            {
+                messageHistory.Add(message);
+            }
+        }
+
+        static string GetHistory()
+        {
+            lock (historyLock)
+            {
+                return string.Join(Environment.NewLine, messageHistory);
+            }
+        }
+        while (true)
+        {
+            TcpClient client = server.AcceptTcpClient();
+            ClientHandler clientHandler = new ClientHandler(client);
+            Thread clientThread = new Thread(clientHandler.HandleClient);
+            clientThread.Start();
+        }
+    }
+    internal static void AddMessageToHistory(string message)
+    {
+        lock (historyLock)
+        {
+            messageHistory.Add(message);
+        }
+    }
+
+    internal static string GetHistory()
+    {
+        lock (historyLock)
+        {
+            return string.Join(Environment.NewLine, messageHistory);
         }
     }
 
@@ -68,71 +109,75 @@ class Server
             }
         }
     }
-}
 
-class ClientHandler
-{
-    private TcpClient client;
-    private NetworkStream stream;
-    private string username;
-
-    public ClientHandler(TcpClient client)
+    internal class ClientHandler
     {
-        this.client = client;
-    }
+        private TcpClient client;
+        private NetworkStream stream;
+        private string username;
 
-    public void HandleClient()
-    {
-        stream = client.GetStream();
-
-        while (true)
+        public ClientHandler(TcpClient client)
         {
-            byte[] data = new byte[1024];
-            int bytesRead = stream.Read(data, 0, data.Length);
-            string message = Encoding.ASCII.GetString(data, 0, bytesRead);
+            this.client = client;
+        }
 
-            if (message.StartsWith("@"))
+        public void HandleClient()
+        {
+            stream = client.GetStream();
+
+            while (true)
             {
-                string[] parts = message.Split(' ', 2);
-                if (parts.Length >= 2)
+                byte[] data = new byte[1024];
+                int bytesRead = stream.Read(data, 0, data.Length);
+                string message = Encoding.ASCII.GetString(data, 0, bytesRead);
+
+                if (message.StartsWith("@"))
                 {
-                    string recipient = parts[0].Substring(1);
-                    string privateMessage = parts[1];
-                    SendPrivateMessage(privateMessage, recipient);
+                    string[] parts = message.Split(' ', 2);
+                    if (parts.Length >= 2)
+                    {
+                        string recipient = parts[0].Substring(1);
+                        string privateMessage = parts[1];
+                        SendPrivateMessage(privateMessage, recipient);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(message))
+                    {
+                        Server.AddMessageToHistory(message);
+                    }
+                    else
+                    {
+                        string errorMessage = "Invalid private message format. Usage: @recipient message";
+                        SendMessage(errorMessage);
+                    }
                 }
                 else
                 {
-                    string errorMessage = "Invalid private message format. Usage: @recipient message";
+                    Server.BroadcastMessage(username + ": " + message, this);
+                }
+            }
+        }
+
+        private void SendPrivateMessage(string message, string recipient)
+        {
+            lock (Server.clientsLock)
+            {
+                if (Server.clients.TryGetValue(recipient, out var targetClient))
+                {
+                    string formattedMessage = $"[Private] {username}: {message}";
+                    targetClient.SendMessage(formattedMessage);
+                }
+                else
+                {
+                    string errorMessage = $"User '{recipient}' not found or offline.";
                     SendMessage(errorMessage);
                 }
             }
-            else
-            {
-                Server.BroadcastMessage(username + ": " + message, this);
-            }
         }
-    }
 
-    private void SendPrivateMessage(string message, string recipient)
-    {
-        lock (Server.clientsLock)
+        public void SendMessage(string message)
         {
-            if (Server.clients.TryGetValue(recipient, out var targetClient))
-            {
-                string formattedMessage = $"[Private] {username}: {message}";
-                targetClient.SendMessage(formattedMessage);
-            }
-            else
-            {
-                string errorMessage = $"User '{recipient}' not found or offline.";
-                SendMessage(errorMessage);
-            }
+            byte[] data = Encoding.ASCII.GetBytes(message);
+            stream.Write(data, 0, data.Length);
         }
-    }
-
-    public void SendMessage(string message)
-    {
-        byte[] data = Encoding.ASCII.GetBytes(message);
-        stream.Write(data, 0, data.Length);
     }
 }
